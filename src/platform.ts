@@ -41,7 +41,7 @@ export class Shelly2PMPlusPlatform implements DynamicPlatformPlugin {
 
   async initAccessories() {
     this.log.debug(this.config.watch);
-    const devices: { deviceIp: string; accessory: Accessory }[] = [];
+    const devices: { deviceIp: string; accessory: Accessory | null }[] = [];
     const activeUUIDs: Array<string> = [];
     const toRegister: Array<PlatformAccessory> = [];
     const toUpdate: Array<PlatformAccessory> = [];
@@ -51,15 +51,26 @@ export class Shelly2PMPlusPlatform implements DynamicPlatformPlugin {
     for (const deviceIp of this.config.watch) {
       for (let i = 0; i <= 1; i++) {
         this.log.info('Getting information about device from ' + deviceIp + ' with id ' + i);
-        const switchAccessory = await switchApi.getBasicInformation(deviceIp, i);
-        devices.push({
-          deviceIp: deviceIp,
-          accessory: switchAccessory,
-        });
+        try {
+          const switchAccessory = await switchApi.getBasicInformation(deviceIp, i);
+          devices.push({
+            deviceIp: deviceIp,
+            accessory: switchAccessory,
+          });
+        } catch (error) {
+          this.log.error('Cannot retrieve data - ' + error);
+          devices.push({
+            deviceIp: deviceIp,
+            accessory: null,
+          });
+        }
       }
     }
 
     for (const deviceDef of devices) {
+      if (deviceDef.accessory === null) {
+        continue;
+      }
       const uuid = this.api.hap.uuid.generate(deviceDef.accessory.src + 'id:' + deviceDef.accessory.id);
       activeUUIDs.push(uuid);
       const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
