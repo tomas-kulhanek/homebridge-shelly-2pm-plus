@@ -1,15 +1,24 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "Shelly2PMPlus",
   "pluginType": "platform",
   "singular": true,
   "schema": {
     "type": "object",
     "properties": {
       "name": {
-        "title": "Name",
         "type": "string",
+        "title": "Plugin Name",
         "required": true,
-        "default": "Example Dynamic Platform"
+        "placeholder": "Shelly 2PM Plus",
+        "description": "Name to use for Homebridge logging purposes. Default: Shelly 2PM Plus"
+      },
+      "watch": {
+        "title": "Watched Devices",
+        "type": "array",
+        "items": {
+          "title": "IP Address",
+          "type": "string"
+        }
       }
     }
   }

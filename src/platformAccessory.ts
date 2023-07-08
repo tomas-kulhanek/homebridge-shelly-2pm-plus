@@ -1,141 +1,99 @@
-import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
+import {Logger, PlatformAccessory, Service} from 'homebridge';
+import {Shelly2PMPlusPlatform} from './platform';
+import {BLUE, CYAN, GREY, LIGHT_GREY, RESET} from './colors';
+import {Accessory} from './DTO/Accessory';
+import SwitchApi from './Api/SwitchApi';
 
-import { ExampleHomebridgePlatform } from './platform';
+export class Shelly2PMPlusPlatformAccessory {
 
-/**
- * Platform Accessory
- * An instance of this class is created for each accessory your platform registers
- * Each accessory may expose multiple services of different service types.
- */
-export class ExamplePlatformAccessory {
   private service: Service;
-
-  /**
-   * These are just used to create a working example
-   * You should implement your own code to track the state of your accessory
-   */
-  private exampleStates = {
-    On: false,
-    Brightness: 100,
-  };
+  private name: string;
+  private logger: Logger;
+  private currentState = false;
 
   constructor(
-    private readonly platform: ExampleHomebridgePlatform,
+    private readonly platform: Shelly2PMPlusPlatform,
     private readonly accessory: PlatformAccessory,
+    private readonly deviceIp: string,
+    private switchAccessory: Accessory,
+    private readonly switchApi: SwitchApi,
   ) {
+    this.logger = platform.log;
+    this.name = platform.config.name as string;
 
-    // set accessory information
-    this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Default-Manufacturer')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Default-Model')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Default-Serial');
+    this.service = this.accessory.getService(this.platform.api.hap.Service.Switch)
+      || this.accessory.addService(this.platform.api.hap.Service.Switch);
+  }
 
-    // get the LightBulb service if it exists, otherwise create a new LightBulb service
-    // you can create multiple services for each accessory
-    this.service = this.accessory.getService(this.platform.Service.Lightbulb) || this.accessory.addService(this.platform.Service.Lightbulb);
+  async updateValues() {
+    this.debug('Update Shelly 2PM Plus accessory');
+    this.switchApi.getStatus(this.deviceIp, this.switchAccessory.id)
+      .then((data) => this.currentState = data.result?.output ?? false);
 
-    // set the service name, this is what is displayed as the default name on the Home app
-    // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.exampleDisplayName);
+    const informationService = this.accessory.getService(this.platform.api.hap.Service.AccessoryInformation);
+    if (informationService) {
+      informationService
+        .setCharacteristic(this.platform.api.hap.Characteristic.Manufacturer, 'Shelly')
+        .setCharacteristic(this.platform.api.hap.Characteristic.Model, '2PM Plus')
+        .setCharacteristic(this.platform.api.hap.Characteristic.SerialNumber, 'fghj');
+    }
+  }
 
-    // each service must implement at-minimum the "required characteristics" for the given service type
-    // see https://developers.homebridge.io/#/service/Lightbulb
+  initialize() {
+    this.debug('Initializing Shelly 2PM Plus accessory');
+    this.service.setCharacteristic(this.platform.Characteristic.Name, this.switchAccessory.result?.name ?? 'Unnamed');
 
-    // register handlers for the On/Off Characteristic
+    // create handlers for required characteristics
     this.service.getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.setOn.bind(this))                // SET - bind to the `setOn` method below
-      .onGet(this.getOn.bind(this));               // GET - bind to the `getOn` method below
+      .onGet(this.handleOnGet.bind(this))
+      .onSet(this.handleOnSet.bind(this));
 
-    // register handlers for the Brightness Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.Brightness)
-      .onSet(this.setBrightness.bind(this));       // SET - bind to the 'setBrightness` method below
-
-    /**
-     * Creating multiple services of the same type.
-     *
-     * To avoid "Cannot add a Service with the same UUID another Service without also defining a unique 'subtype' property." error,
-     * when creating multiple services of the same type, you need to use the following syntax to specify a name and subtype id:
-     * this.accessory.getService('NAME') || this.accessory.addService(this.platform.Service.Lightbulb, 'NAME', 'USER_DEFINED_SUBTYPE_ID');
-     *
-     * The USER_DEFINED_SUBTYPE must be unique to the platform accessory (if you platform exposes multiple accessories, each accessory
-     * can use the same sub type id.)
-     */
-
-    // Example: add two "motion sensor" services to the accessory
-    const motionSensorOneService = this.accessory.getService('Motion Sensor One Name') ||
-      this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor One Name', 'YourUniqueIdentifier-1');
-
-    const motionSensorTwoService = this.accessory.getService('Motion Sensor Two Name') ||
-      this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor Two Name', 'YourUniqueIdentifier-2');
-
-    /**
-     * Updating characteristics values asynchronously.
-     *
-     * Example showing how to update the state of a Characteristic asynchronously instead
-     * of using the `on('get')` handlers.
-     * Here we change update the motion sensor trigger states on and off every 10 seconds
-     * the `updateCharacteristic` method.
-     *
-     */
-    let motionDetected = false;
-    setInterval(() => {
-      // EXAMPLE - inverse the trigger
-      motionDetected = !motionDetected;
-
-      // push the new value to HomeKit
-      motionSensorOneService.updateCharacteristic(this.platform.Characteristic.MotionDetected, motionDetected);
-      motionSensorTwoService.updateCharacteristic(this.platform.Characteristic.MotionDetected, !motionDetected);
-
-      this.platform.log.debug('Triggering motionSensorOneService:', motionDetected);
-      this.platform.log.debug('Triggering motionSensorTwoService:', !motionDetected);
-    }, 10000);
+    this.updateValues()
+      .then(() => {
+        setInterval(() => {
+          this.updateValues()
+            .then(() => this.debug('Value updates was successfully'))
+            .catch((error) => this.error(`Is not possible to update values ${error}`));
+        }, 10000); //every 10 second
+      }).catch((error) => this.error(`Is not possible to update values ${error}`));
   }
 
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
-   */
-  async setOn(value: CharacteristicValue) {
-    // implement your own code to turn your device on/off
-    this.exampleStates.On = value as boolean;
-
-    this.platform.log.debug('Set Characteristic On ->', value);
+  handleOnGet() {
+    this.debug('Triggered GET On - ' + this.currentState);
+    return this.currentState;
   }
 
-  /**
-   * Handle the "GET" requests from HomeKit
-   * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
-   *
-   * GET requests should return as fast as possbile. A long delay here will result in
-   * HomeKit being unresponsive and a bad user experience in general.
-   *
-   * If your device takes time to respond you should update the status of your device
-   * asynchronously instead using the `updateCharacteristic` method instead.
-
-   * @example
-   * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
-   */
-  async getOn(): Promise<CharacteristicValue> {
-    // implement your own code to check if the device is on
-    const isOn = this.exampleStates.On;
-
-    this.platform.log.debug('Get Characteristic On ->', isOn);
-
-    // if you need to return an error to show the device as "Not Responding" in the Home app:
-    // throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-
-    return isOn;
+  handleOnSet(value) {
+    this.debug('Triggered SET On:' + value);
+    this.switchApi.toggleStatus(this.deviceIp, this.switchAccessory.id)
+      .then(() => this.currentState = value)
+      .catch(() => this.error('Is not possible to update switch status'));
   }
 
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, changing the Brightness
-   */
-  async setBrightness(value: CharacteristicValue) {
-    // implement your own code to set the brightness
-    this.exampleStates.Brightness = value as number;
-
-    this.platform.log.debug('Set Characteristic Brightness -> ', value);
+  debug(message: string) {
+    this.logger.debug(this.baseLogMessage + `${GREY}${message}${RESET}`);
   }
 
+  info(message: string) {
+    this.logger.info(this.baseLogMessage + message);
+  }
+
+  warning(message: string) {
+    this.logger.warn(this.baseLogMessage + message);
+  }
+
+  error(message: string) {
+    this.logger.error(this.baseLogMessage + message);
+  }
+
+  private get baseLogMessage(): string {
+    return `${LIGHT_GREY}[${this.accessory.context.device.uuid}]${RESET} ${BLUE}[${this.accessory.displayName}]: ${RESET}`;
+  }
+
+  private cyanize(value: string | number | undefined): string {
+    if (value === undefined) {
+      return '';
+    }
+    return `${CYAN}${value}${RESET}`;
+  }
 }
