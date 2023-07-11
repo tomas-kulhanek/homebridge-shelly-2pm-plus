@@ -39,14 +39,25 @@ export class Shelly2PMPlusPlatform implements DynamicPlatformPlugin {
     this.accessories.push(accessory);
   }
 
+  isIterable(input) {
+    if (input === null || input === undefined) {
+      return false;
+    }
+
+    return typeof input[Symbol.iterator] === 'function';
+  }
+
   async initAccessories() {
-    this.log.debug(this.config.watch);
     const devices: { deviceIp: string; accessory: Accessory | null }[] = [];
     const activeUUIDs: Array<string> = [];
     const toRegister: Array<PlatformAccessory> = [];
     const toUpdate: Array<PlatformAccessory> = [];
     const toUnregister: Array<PlatformAccessory> = [];
     const switchApi = new SwitchApi();
+    if (!this.isIterable(this.config.watch)) {
+      this.log.warn('No device found in configuration section "watch"');
+      return;
+    }
 
     for (const deviceIp of this.config.watch) {
       for (let i = 0; i <= 1; i++) {
