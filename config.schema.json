@@ -17,7 +17,9 @@
         "type": "array",
         "items": {
           "title": "IP Address",
-          "type": "string"
+          "type": "string",
+          "format": "ipv4",
+          "required": true
         }
       }
     }
