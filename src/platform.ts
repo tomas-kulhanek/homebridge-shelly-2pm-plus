@@ -95,7 +95,7 @@ export class Shelly2PMPlusPlatform implements DynamicPlatformPlugin {
           this.colorizedThermostatIdentifications(device) + 'Restoring existing switch from cache',
         );
         existingAccessory.context.device = device;
-        existingAccessory.displayName = device.name;
+        existingAccessory.displayName = device.name ?? 'Switch ' + device.uuid;
         this.createSwitchPlatformAccessory(existingAccessory, deviceDef.deviceIp, deviceDef.accessory, switchApi);
         toUpdate.push(existingAccessory);
         continue;

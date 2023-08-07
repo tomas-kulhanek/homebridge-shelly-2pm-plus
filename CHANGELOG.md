@@ -1,3 +1,6 @@
+## v1.0.1 (2023-08-07)
+- fix missing display name
+
 ## v1.0.0 (2023-07-14)
 - change configuration format for ipv4
 
