@@ -89,13 +89,13 @@ export class Shelly2PMPlusPlatform implements DynamicPlatformPlugin {
       if (deviceDef.accessory.result === undefined) {
         continue;
       }
-      const device = {uuid: uuid, name: deviceDef.accessory.result.name};
+      const device = {uuid: uuid, name: (deviceDef.accessory.result.name ?? 'Switch ' + uuid )};
       if (existingAccessory) {
         this.log.info(
           this.colorizedThermostatIdentifications(device) + 'Restoring existing switch from cache',
         );
         existingAccessory.context.device = device;
-        existingAccessory.displayName = device.name ?? 'Switch ' + device.uuid;
+        existingAccessory.displayName = device.name;
         this.createSwitchPlatformAccessory(existingAccessory, deviceDef.deviceIp, deviceDef.accessory, switchApi);
         toUpdate.push(existingAccessory);
         continue;
